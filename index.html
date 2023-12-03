@@ -1,0 +1,290 @@
+<!-- 
+  Project Name: Spatial Data Viewer
+  Author: Afiq. Jais A. Manaf
+  Date: 2 December 2023
+
+  INSTRUCTIONS:
+
+  1) You are given a .zip file containing spatial data in polygon type in Figure 1 and its attribute
+     info in Table 1.
+
+  2) You need to develop a program(s) to extract all the information to be displayed in a form.
+     Please refer illustration in figure 2 for better understanding
+
+     Steps:
+      a. User upload .zip file;
+      b. User preview uploaded data on map as per Figure 1; and
+      c. System extract attribute info and display all the info as per Table 1 in the form. 
+
+  3) Email the sourcecodes and programs and screenshot to nurhaizum@lvsat.com. You may
+     email URL of the programs if you prefer to host in the cloud.
+ -->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shapefile to GeoJSON</title>
+
+  <!-- Bootstrap CSS -->
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+  <style>
+    #map {
+      height: 400px;
+    }
+  </style>
+</head>
+
+<body class="mt-1">
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-xl-12 d-flex">
+        <div class="card partition shadow flex-fill">
+          <div class="card-body d-flex flex-column">
+            <div class="container">
+              <h4 class="mb-4">Spatial Data Viewer</h4>
+              <div class="row justify-content-center">
+                <div class="col-md-2">
+                  <h6 class="mt-2">Muat Naik Dokumen</h6>
+                </div>
+                <div class="col-md-4">
+                  <div class="input-group">
+                    <input id="fileName" type="text" class="form-control" readonly>
+                    <div class="input-group-append">
+                      <label class="btn btn-primary">
+                        Cari
+                        <input type="file" id="zipFileInput" style="display: none;" accept=".zip"
+                          onchange="displayFileName()">
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md">
+                  <button class="btn btn-danger" onclick="handleFile()">Previu</button>
+                  <button class="btn btn-success" onclick="saveData()">Simpan</button>
+                </div>
+              </div>
+              <hr>
+              <div class="row mb-4">
+                <div class="col-md-2">
+                  <label for="">ID Projek</label>
+                </div>
+                <div class="col-md-4">
+                  <input id="idProjek" type="text" class="form-control">
+                </div>
+                <div class="col-md-2">
+                  <label for="">Nama Projek</label>
+                </div>
+                <div class="col-md-4">
+                  <input id="namaProjek" type="text" class="form-control">
+                </div>
+              </div>
+              <div class="row mb-4">
+                <div class="col-md-2">
+                  <label for="">Negeri</label>
+                </div>
+                <div class="col-md-4">
+                  <input id="negeri" type="text" class="form-control">
+                </div>
+                <div class="col-md-2">
+                  <label for="">Daerah</label>
+                </div>
+                <div class="col-md-4">
+                  <input id="daerah" type="text" class="form-control">
+                </div>
+              </div>
+              <div class="row mb-4">
+                <div class="col-md-2">
+                  <label for="">Mukim</label>
+                </div>
+                <div class="col-md-4">
+                  <input id="mukim" type="text" class="form-control">
+                </div>
+                <div class="col-md-2">
+                  <label for="">Tarikh</label>
+                </div>
+                <div class="col-md-4">
+                  <input id="tarikh" type="date" class="form-control">
+                </div>
+              </div>
+              <div id="map" class="mt-4"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dependency Scripts -->
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.1/dist/umd/popper.min.js"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
+  <script src="https://unpkg.com/shapefile/dist/shapefile.js"></script>
+
+  <!-- Operational Scripts -->
+  <script>
+    let map; // Declare map variable outside functions
+    let geoJsonLayer; // Variable to store GeoJSON layer
+    let mapInitialized = false; //  Variable to store the state of initial map
+    let source; // Declare source at a higher scope
+
+    // Declare global form's variables outside
+    const dataIdProjek = document.getElementById('idProjek');
+    const dataNamaProjek = document.getElementById('namaProjek');
+    const dataNegeri = document.getElementById('negeri');
+    const dataDaerah = document.getElementById('daerah');
+    const dataMukim = document.getElementById('mukim');
+    const dataTarikh = document.getElementById('tarikh');
+
+    // Function to initialize the Leaflet map
+    function initMap() {
+      // Always set map to null before any execution
+      map = null
+      if (!mapInitialized) {
+        map = L.map('map').setView([0, 0], 2); // Set the initial map view
+
+        // Add a tile layer to the map
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        mapInitialized = true; // Set the flag to true after initialization
+      }
+    }
+
+    // Function to set the value to input text of fileName
+    function displayFileName() {
+      const input = document.getElementById('zipFileInput');
+      const fileNameDisplay = document.getElementById('fileName');
+
+      if (input.files.length > 0) {
+        fileNameDisplay.value = `${input.files[0].name}`;
+      } else {
+        fileNameDisplay.textContent = '';
+      }
+    }
+
+    // Function to extract the ZIP folder and read all files
+    function handleFile() {
+      const input = document.getElementById('zipFileInput');
+      const file = input.files[0];
+
+      if (file) {
+        const reader = new FileReader();
+
+        reader.onload = function (event) {
+          const arrayBuffer = event.target.result;
+
+          JSZip.loadAsync(arrayBuffer).then(function (zip) {
+            // Extract the contents of the ZIP folder
+            zip.forEach(function (relativePath, zipEntry) {
+              zipEntry.async('arraybuffer').then(function (content) {
+                // Check if the file is a shapefile (shp, shx, prj, etc.)
+                const extension = relativePath.split('.').pop().toLowerCase();
+                if (
+                  extension === 'shp' ||
+                  extension === 'shx' ||
+                  extension === 'prj' ||
+                  extension === 'cpg' ||
+                  extension === 'qmd'
+                ) {
+                  // Use shapefile library to parse the shapefile
+                  parseShapefile(content);
+                } else if (extension === 'dbf') {
+                  // To read the attributes of ZIP folder
+                  parseDbfFile(content);
+                }
+              });
+            });
+          });
+        };
+
+        reader.readAsArrayBuffer(file);
+      } else {
+        alert('Please select a ZIP file.');
+      }
+    }
+
+    function parseShapefile(buffer) {
+      shapefile.read(buffer)
+        .then(function (geojson) {
+          // Create a GeoJSON layer and add it to the existing map
+          geoJsonLayer = L.geoJSON(geojson).addTo(map);
+
+          // Fit the map to the bounds of the GeoJSON layer
+          map.fitBounds(geoJsonLayer.getBounds());
+        })
+        .catch(error => console.error(error.stack));
+    }
+
+    function parseDbfFile(buffer) {
+      console.log("DBF Buffer:", buffer);
+
+      shapefile.openDbf(buffer)
+        .then(function (s) {
+          console.log("DBF Source:", s);
+          source = s; // Assign source to the higher scope variable
+          readDbfRecords(); // Start reading records
+        })
+        .catch(error => console.error(error.stack));
+    }
+
+    function readDbfRecords() {
+      source.read()
+        .then(function log(result) {
+          if (result.done) return;
+
+          console.log("DBF Record:", result.value);
+
+          // Assuming each feature is a GeoJSON feature
+          displayDbfData(result.value);
+
+          return source.read().then(log);
+        })
+        .catch(error => console.error(error.stack));
+    }
+
+
+    function displayDbfData(data) {
+      dataIdProjek ? (dataIdProjek.value = data.OBJ_ID) : (dataIdProjek.value = null)
+      dataNamaProjek ? (dataNamaProjek.value = data.NAMA_PROJ) : (dataNamaProjek.value = null)
+      dataNegeri ? (dataNegeri.value = data.NEGERI) : (dataNegeri.value = null)
+      dataDaerah ? (dataDaerah.value = data.DAERAH) : (dataDaerah.value = null)
+      dataMukim ? (dataMukim.value = data.MUKIM) : (dataMukim.value = null)
+
+      const formattedDate = data.TARIKH instanceof Date
+        ? formatDate(data.TARIKH)
+        : formatDate(new Date(data.TARIKH));
+
+      dataTarikh ? (dataTarikh.value = formattedDate) : (dataTarikh.value = null);
+    }
+
+    function formatDate(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are zero-based
+      const day = String(date.getDate()).padStart(2, '0');
+
+      return `${year}-${month}-${day}`;
+    }
+
+    // Call initMap when the page is fully loaded
+    window.onload = function () {
+      // Check if Leaflet is fully loaded before calling initMap
+      if (typeof L !== 'undefined') {
+        initMap();
+      } else {
+        console.error('Leaflet library not loaded.');
+      }
+    };
+  </script>
+</body>
+
+</html>
